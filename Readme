@@ -1,0 +1,9 @@
+
+
+### First Download CrackForest Dataset
+# download to ./dataset
+
+mkdir ./dataset
+cd ./dataset
+git clone https://github.com/cuilimeng/CrackForest-dataset.git
+

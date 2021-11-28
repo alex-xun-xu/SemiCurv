@@ -1,0 +1,14 @@
+Host:Changi
+GPU:0
+Network:ResUnet
+LearningRate:0.001
+Epoch:150
+batchsize:8
+labelpercent:0.01
+ssl:FullSup
+Gamma:1.0
+RampupEpoch:100
+Target Dataset:CrackForest
+Aux Dataset:None
+AddLocation:0
+Augment:Affine
