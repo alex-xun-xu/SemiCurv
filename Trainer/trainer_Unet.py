@@ -259,7 +259,7 @@ class Trainer():
         '''
 
         ## Apply Augmentatoin
-        # image level augmentation
+        # pixel level augmentation
         data, gt = self.augmentor.augment(images=data.astype(np.float32), masks=gt.astype(np.float32))
 
         # geometric transformation augmentation
@@ -1266,6 +1266,7 @@ class Trainer():
             with open(self.settings_filepath,'w') as fid:
                 fid.write('Host:{}\n'.format(socket.gethostname()))
                 fid.write('GPU:{}\n'.format(args.GPU))
+                fid.write('SplitSeed:{}\n'.format(args.seed_split))
                 fid.write('Network:{}\n'.format(args.net))
                 fid.write('LearningRate:{}\n'.format(args.LearningRate))
                 fid.write('Epoch:{}\n'.format(args.Epoch))

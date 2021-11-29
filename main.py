@@ -17,9 +17,9 @@ import argparse as arg
 ## Take input arguments
 parser = arg.ArgumentParser(description='Take parameters')
 
-parser.add_argument('--Mode',type=str,help='Running mode default: train [train, test]',default='test')
+parser.add_argument('--Mode',type=str,help='Running mode default: train [train, test]',default='train')
 parser.add_argument('--Ckpt',type=str,help='Ckpt to resotre for test/inference',
-                    default='/vision02/SSL/Simplified/Results/CrackForest/MeanTeacher/MeanTeacher_ResUnet_Dice+ConsistMSE_loss_ep-2000_m-0.01_2020-08-15_22-29-42/ckpt/model_epoch-best.pt')
+                    default='/vision02/SSL/Simplified/Results/CrackForest/FullSup/FullSup_ResUnet_Diceloss_ep-1000_m-0.01_2020-11-20_10-59-38/ckpt/model_epoch-best.pt')
 parser.add_argument('--GPU',type=int,help='GPU to use',default=0)
 # parser.add_argument('--ExpSum','-es',type=int,help='Flag to indicate if export summary',default=0)    # bool
 parser.add_argument('--SaveRslt','-sr',type=int,help='Flag to indicate if save trained model and results',default=1)    # bool
@@ -135,7 +135,7 @@ if args.TargetData == 'CrackForest':
 
     Loader = DataIO.DataIO(batch_size=args.batchsize, label_percent=args.labelpercent, add_unlab=args.AddUnlab)
     # Loader.InitDataset_EqLabUnlab(lab_ratio=lab_ratio)
-    Loader.InitDataset_EqLabUnlab(split_filepath=os.path.abspath('./Dataset/CrackForest-dataset/split_0'),
+    Loader.InitDataset_EqLabUnlab(split_filepath=os.path.abspath('Dataset/split_0'),
                                   lab_ratio=lab_ratio)
 elif args.TargetData == 'Crack500':
     import DataIO_Crack500 as DataIO

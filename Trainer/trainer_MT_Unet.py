@@ -2198,6 +2198,7 @@ class Trainer(UnetTrainer):
             with open(self.settings_filepath,'w') as fid:
                 fid.write('Host:{}\n'.format(socket.gethostname()))
                 fid.write('GPU:{}\n'.format(args.GPU))
+                fid.write('SplitSeed:{}\n'.format(args.seed_split))
                 fid.write('Network:{}\n'.format(args.net))
                 fid.write('LearningRate:{}\n'.format(args.LearningRate))
                 fid.write('Epoch:{}\n'.format(args.Epoch))

@@ -3,3 +3,5 @@
 /Dataset/CrackForest-dataset/image/
 /Dataset/CrackForest-dataset/seg/
 /Dataset/CrackForest-dataset/README.md
+/exp_meanteacher.sh
+/exp_full_sup.sh
