@@ -44,10 +44,16 @@ DRIVE128 dataset (cropped patches 128*128 from the original DRIVE dataset [2]). 
 
 ## Run training script
 
-Train fully supervised baseline model and SemiCurv model by running the following script. To change the default dataset, please update 
+Train fully supervised baseline model and SemiCurv model by running the following script.
 
 ```
 sh train.sh
+```
+
+To change the default dataset, please update inside train.sh script.
+
+```commandline
+Dataset=CrackForest # dataset to use [option: CrackForest, EM, DRIVE]
 ```
 
 ### Adaptation to other datasets

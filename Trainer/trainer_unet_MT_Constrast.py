@@ -8,9 +8,6 @@ import pathlib
 sys.path.append(os.path.join(pathlib.Path(__file__).parent.absolute(),'../Network'))
 
 import torch
-import unet_model as model
-from torch import optim
-import evaluator as eval
 from trainer_unet_MT import Trainer as MTUnetTrainer
 
 
@@ -31,7 +28,6 @@ class Trainer(MTUnetTrainer):
         :param target_data:
         '''
         super(Trainer, self).__init__(args, Loader, device)
-
 
     def TrainOneEpoch(self, writer=None, max_itr=np.inf):
         '''

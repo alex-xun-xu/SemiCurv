@@ -102,41 +102,6 @@ class Trainer():
             gt = MockTransform()
         return gt
 
-
-    def LoadTopoRefinementSetting(self, topo_setting_filepath = '/vision02/SSL/Simplified/Experiments/Topology/TopologyPostProcSettings'):
-
-
-        ## Read Topology Post Processing Settings
-        self.TopoSettings = {}
-        with open(topo_setting_filepath, 'r') as fid:
-            lines = fid.readlines()
-            for line in lines:
-                if '##' == line[0:2]:
-                    continue
-                else:
-                    if 'TopologyWeight' in line:
-                        self.TopoSettings['TopologyWeight'] = parse.parse('TopologyWeight: {:d}', line)[0]
-                    if 'GeometricWeight' in line:
-                        self.TopoSettings['GeometricWeight'] = parse.parse('GeometricWeight: {:d}', line)[0]
-                    if 'RandCrop' in line:
-                        self.TopoSettings['RandCrop'] = parse.parse('RandCrop: {:d}', line)[0]
-                    if 'OptIters' in line:
-                        self.TopoSettings['OptIters'] = parse.parse('OptIters: {:d}', line)[0]
-                    if 'CropSize' in line:
-                        self.TopoSettings['CropSize'] = parse.parse('CropSize: {:d}', line)[0]
-                    if 'DownsampTimes' in line:
-                        self.TopoSettings['DownsampTimes'] = parse.parse('DownsampTimes: {:d}', line)[0]
-
-    def ExportTopoRefinementSetting(self, topo_setting_expfilepath=None):
-        with open(topo_setting_expfilepath, 'w') as fid:
-            fid.write('## Topology Refinement Settings\n')
-            fid.write('TopologyWeight: {:d}\n'.format(self.TopoSettings['TopologyWeight']))
-            fid.write('GeometricWeight: {:d}\n'.format(self.TopoSettings['GeometricWeight']))
-            fid.write('RandCrop: {:d}\n'.format(self.TopoSettings['RandCrop']))
-            fid.write('OptIters: {:d}\n'.format(self.TopoSettings['OptIters']))
-            fid.write('CropSize: {:d}\n'.format(self.TopoSettings['CropSize']))
-            fid.write('DownsampTimes: {:d}\n'.format(self.TopoSettings['DownsampTimes']))
-
     def DefineNetwork(self, net_name, loss_name):
         '''
         define backbone network
@@ -663,80 +628,6 @@ class Trainer():
         else:
             return self.ValOneEpoch_CurveLinear()
 
-    def TestAll_SavePred_bk(self,export_path=None,best_ckpt_filepath=None):
-        '''
-        Test all samples in the test set and export predictions
-        :return:
-        '''
-
-        epoch_loss = 0.
-
-        test_pred_all = []
-        test_gt_all = []
-
-        ## Restore best ckpt
-        if best_ckpt_filepath is not None:
-            self.net.load_state_dict(torch.load(best_ckpt_filepath,map_location=self.device))
-            self.net.eval()
-
-        itr = 0
-
-        while True:
-            ## Get next batch test samples
-            FinishEpoch, test_data, test_gt, test_names = \
-                self.Loader.NextTestBatch()
-            if FinishEpoch:
-                break
-
-            ## Apply Normalization
-            test_data = self.ApplyNormalization(test_data)
-
-            test_data = np.transpose(test_data, [0, 3, 1, 2])
-            test_gt = np.transpose(test_gt, [0, 1, 2])
-
-            ## test current batch
-            test_data = torch.tensor(test_data, device=self.device, dtype=torch.float32)
-            test_gt = torch.tensor(test_gt, device=self.device, dtype=torch.float32)
-
-            # forward pass
-            test_pred = self.net(test_data)  # forward pass prediction of train labeled set
-            loss = self.criterion(pred=test_pred[:, 0, ...], gt=test_gt)
-            epoch_loss = epoch_loss*itr/(itr+1) + loss.item()/(itr+1)
-
-            # accumulate predictions and ground-truths
-            test_pred = torch.sigmoid(test_pred)
-            test_pred_all.append(test_pred.detach().cpu().numpy())
-            test_gt_all.append(test_gt.detach().cpu().numpy())
-
-            # export prediction and gt figures
-            if export_path is not None:
-                for img_i, gt_i, pred_i in zip(test_names,test_gt,test_pred):
-                    exp_gt_filepath = os.path.join(export_path,'{}_gt.png'.format(img_i))
-                    exp_pred_filepath = os.path.join(export_path,'{}_pred.png'.format(img_i))
-                    plt.imsave(exp_gt_filepath,gt_i.detach().cpu().numpy())
-                    plt.imsave(exp_pred_filepath,pred_i.detach().cpu().numpy()[0])
-
-            # increase local iteration
-            itr += 1
-
-        ## Evaluate test performance
-        test_pred_all = np.concatenate(test_pred_all)
-        test_pred_all = np.squeeze(test_pred_all > 0.5, axis=1).astype(float)  # binarize predictions
-        test_gt_all = np.concatenate(test_gt_all).astype(float)
-        perpix_acc = self.evaluator.perpixel_acc(test_pred_all,
-                                                 test_gt_all)  # etestuate per pixel accuracy
-        persamp_iou = self.evaluator.persamp_iou(test_pred_all,
-                                                 test_gt_all)  # evaluate per sample iou
-        micro_iou = self.evaluator.micro_iou(test_pred_all, test_gt_all)  # evaluate micro-average iou
-
-        self.best_te_loss = epoch_loss
-        self.best_te_Acc = perpix_acc
-        self.best_te_macro_IoU = persamp_iou
-        self.best_te_micro_IoU = micro_iou
-
-        return epoch_loss, perpix_acc, persamp_iou, micro_iou
-
-    # def TestAll_SavePred(self,export_path=None,best_ckpt_filepath=None):
     def TestAll_SavePred(self, exp_fig=False, best_ckpt_filepath=None):
 
         '''
@@ -858,143 +749,6 @@ class Trainer():
 
         return epoch_loss, perpix_acc, persamp_iou, micro_iou, AIU
 
-    def TestAll_TopoPostProc(self, exp_fig=False, best_ckpt_filepath=None):
-
-        '''
-        Test all samples in the test set with topological post processing and export predictions
-        :return:
-        '''
-
-        from topologylayer.nn import LevelSetLayer2D, SumBarcodeLengths, PartialSumBarcodeLengths
-
-        epoch_loss = 0.
-
-        test_pred_all = []
-        test_gt_all = []
-        test_gt_thin_all = []
-        test_gt_org_all = []
-
-        ## Restore best ckpt
-        if best_ckpt_filepath is not None:
-            self.net.load_state_dict(torch.load(best_ckpt_filepath,map_location=self.device))
-            self.net.eval()
-
-        itr = 0
-
-        tloss = Loss.TopoLoss([512,512])  # topology penalty
-        gloss = nn.MSELoss()
-
-        while True:
-            ## Get next batch test samples
-            FinishEpoch, data = \
-                self.Loader.NextTestBatch()
-            if FinishEpoch:
-                break
-
-            test_data = data['data']
-            test_gt = data['gt']
-            test_gt_org = data['gt_org']
-            # test_gt_thin = data['gt_thin']
-            test_names = data['name']
-
-            ## Apply Normalization
-            test_data = self.ApplyNormalization(test_data)
-
-            test_data = np.transpose(test_data, [0, 3, 1, 2])
-            test_gt = np.transpose(test_gt, [0, 1, 2])
-
-            ## test current batch
-            test_data = torch.tensor(test_data, device=self.device, dtype=torch.float32)
-            test_gt = torch.tensor(test_gt, device=self.device, dtype=torch.float32)
-
-            # Augment with location
-            if self.Location:
-                x, y = np.meshgrid(np.arange(0, test_data.shape[3]),
-                                   np.arange(0, test_data.shape[2]))
-                x = x[np.newaxis, np.newaxis, ...].astype(np.float32)/x.max()
-                y = y[np.newaxis, np.newaxis, ...].astype(np.float32)/y.max()
-                x = torch.tensor(np.tile(x, [test_data.shape[0], 1, 1, 1]), device=test_data.device)
-                y = torch.tensor(np.tile(y, [test_data.shape[0], 1, 1, 1]), device=test_data.device)
-                test_data = torch.cat([test_data, x, y], dim=1)
-
-            # forward pass
-            test_pred = self.net(test_data)  # forward pass prediction of train labeled set
-            loss = self.criterion(pred=test_pred[:, 0, ...], gt=test_gt)
-            epoch_loss = epoch_loss*itr/(itr+1) + loss.item()/(itr+1)
-
-            # Topology Post Processing
-            for pred_i in test_pred:
-                x_t = torch.autograd.Variable(torch.tensor(pred_i).type(torch.float),
-                                              requires_grad=True)
-                x_init = pred_i
-
-                optimizer = torch.optim.Adam([x_t], lr=1e-2)
-
-                for i in range(500):
-                    # tick = time.time()
-                    optimizer.zero_grad()
-                    tlossi, dgminfo = tloss(x_t)
-                    glossi = gloss(x_t, x_init)
-                    loss = 1 * tlossi + glossi
-                    loss.backward()
-                    optimizer.step()
-
-
-            # accumulate predictions and ground-truths
-            test_pred = torch.sigmoid(test_pred)
-            for pred_i in test_pred.detach().cpu().numpy():
-                test_pred_all.append(pred_i[0])
-            for gt_i in test_gt.detach().cpu().numpy():
-                test_gt_all.append(gt_i)
-            # test_pred_all.append(test_pred.detach().cpu().numpy())
-            # test_gt_all.append(test_gt.detach().cpu().numpy())
-            if test_gt_org is not None:
-                for gt_i in test_gt_org:
-                    test_gt_org_all.append(gt_i)
-            # test_gt_org_all.append(test_gt_org)
-            # test_gt_thin_all.append(test_gt_thin)
-
-                # export prediction and gt figures
-                if exp_fig:
-                    for img_i, gt_i, pred_i in zip(test_names, test_gt, test_pred):
-                        exp_gt_filepath = os.path.join(self.export_path, 'gt', '{}_gt.png'.format(img_i))
-                        pred_path = os.path.join(self.export_path, 'pred')
-                        if not os.path.exists(pred_path):
-                            os.makedirs(pred_path)
-                        exp_pred_filepath = os.path.join(pred_path, '{}_pred.png'.format(img_i))
-                        # plt.imsave(exp_gt_filepath,gt_i.detach().cpu().numpy())
-                        # plt.imsave(exp_pred_filepath,pred_i.detach().cpu().numpy()[0])
-                        img = Image.fromarray(255 * pred_i.detach().cpu().numpy()[0]).convert('RGB')
-                        img.save(exp_pred_filepath)
-
-            # increase local iteration
-            itr += 1
-
-        ## Evaluate test performance
-        if self.target_data == 'CrackForest' or 'MITRoad':
-            # test_pred_all = np.squeeze(np.concatenate(test_pred_all),axis=1)
-            test_pred_all = np.array(test_pred_all)
-            test_pred_bin_all = (test_pred_all > 0.5).astype(float)  # binarize predictions
-            test_gt_all = np.array(test_gt_all).astype(float)
-            # test_gt_thin_all = np.concatenate(test_gt_thin_all).astype(float)
-            perpix_acc = self.evaluator.perpixel_acc(test_pred_bin_all,
-                                                     test_gt_all)  # etestuate per pixel accuracy
-            persamp_iou = self.evaluator.persamp_iou(test_pred_bin_all,
-                                                     test_gt_all)  # evaluate per sample iou
-            micro_iou = self.evaluator.micro_iou(test_pred_bin_all, test_gt_all)  # evaluate micro-average iou
-            # ods = self.evaluator.ODS(test_pred_all,test_gt_thin_all)   # evaluate ODS
-            AIU = self.evaluator.AIU(test_pred_all,test_gt_all)   # evaluate AIU
-        elif self.target_data == 'Crack500':
-            perpix_acc, persamp_iou, micro_iou, AIU = \
-                self.CalMetric_Crack500(test_pred_all, test_gt_org_all)
-
-        self.best_te_loss = epoch_loss
-        self.best_te_Acc = perpix_acc
-        self.best_te_macro_IoU = persamp_iou
-        self.best_te_micro_IoU = micro_iou
-        self.best_te_AIU = AIU
-
-        return epoch_loss, perpix_acc, persamp_iou, micro_iou, AIU
 
     def CalMetric_Crack500(self, pred, gt):
         '''
@@ -1024,78 +778,6 @@ class Trainer():
 
         return perpix_acc, persamp_iou, micro_iou, AIU, micro_F1, macro_F1
 
-
-    def TestAll_SavePred_debug(self,export_path=None,best_ckpt_filepath=None):
-        '''
-        Test all samples in the test set and export predictions
-        :return:
-        '''
-
-        epoch_loss = 0.
-
-        test_pred_all = []
-        test_gt_all = []
-
-        ## Restore best ckpt
-        if best_ckpt_filepath is not None:
-            self.net.load_state_dict(torch.load(best_ckpt_filepath,map_location=self.device))
-        self.net.eval()
-
-        itr = 0
-
-        while True:
-            ## Get next batch test samples
-            FinishEpoch, test_data, test_gt, test_names = \
-                self.Loader.NextTestBatch()
-            if FinishEpoch:
-                break
-
-            ## Apply Normalization
-            test_data = self.ApplyNormalization(test_data)
-
-            test_data = np.transpose(test_data, [0, 3, 1, 2])
-            test_gt = np.transpose(test_gt, [0, 1, 2])
-
-            ## test current batch
-            test_data = torch.tensor(test_data, device=self.device, dtype=torch.float32)
-            test_gt = torch.tensor(test_gt, device=self.device, dtype=torch.float32)
-
-            # forward pass
-            test_pred = self.net(test_data)  # forward pass prediction of train labeled set
-            loss = self.criterion(pred=test_pred[:, 0, ...], gt=test_gt)
-            epoch_loss = epoch_loss*itr/(itr+1) + loss.item()/(itr+1)
-
-            # accumulate predictions and ground-truths
-            test_pred = torch.sigmoid(test_pred/10)
-            test_pred_all.append(test_pred.detach().cpu().numpy())
-            test_gt_all.append(test_gt.detach().cpu().numpy())
-
-            # export prediction and gt figures
-            if export_path is not None:
-                for img_i, gt_i, pred_i in zip(test_names,test_gt,test_pred):
-                    exp_gt_filepath = os.path.join(export_path,'{}_gt.png'.format(img_i))
-                    exp_pred_filepath = os.path.join(export_path,'{}_pred.png'.format(img_i))
-                    plt.imsave(exp_gt_filepath,gt_i.detach().cpu().numpy())
-                    plt.imsave(exp_pred_filepath,pred_i.detach().cpu().numpy()[0])
-
-            # increase local iteration
-            itr += 1
-
-        ## Evaluate test performance
-        test_pred_all = np.concatenate(test_pred_all)
-        test_pred_all = np.squeeze(test_pred_all > 0.5, axis=1).astype(float)  # binarize predictions
-        test_gt_all = np.concatenate(test_gt_all).astype(float)
-        perpix_acc = self.evaluator.perpixel_acc(test_pred_all,
-                                                 test_gt_all)  # etestuate per pixel accuracy
-        persamp_iou = self.evaluator.persamp_iou(test_pred_all,
-                                                 test_gt_all)  # evaluate per sample iou
-        micro_iou = self.evaluator.micro_iou(test_pred_all, test_gt_all)  # evaluate micro-average iou
-
-        self.te_Acc = perpix_acc
-        self.te_macro_IoU = persamp_iou
-        self.te_micro_IoU = micro_iou
-
-        return epoch_loss, perpix_acc, persamp_iou, micro_iou
 
     def UpdateBest(self):
         self.best_tr_Acc = self.tr_Acc
@@ -1242,7 +924,6 @@ class Trainer():
         shutil.copy('../Network/Augmentation.py', self.aug_path)
         shutil.copy('../Network/GeoTform.py', self.aug_path)
 
-
     def RestoreModelByPath(self, ckpt_path=None, model_epoch='best'):
 
         if ckpt_path is None:
@@ -1284,7 +965,6 @@ class Trainer():
                     fid.write('Elastic Alpha:{}\n'.format(self.ElasticPara['alpha']))
                     fid.write('Elastic Sigma:{}\n'.format(self.ElasticPara['sigma']))
 
-
     def UpdateLatestModel(self):
         '''
         Update Latest Model
@@ -1304,20 +984,3 @@ class Trainer():
             # update best tr and val performance
             self.UpdateBest()
             print('saved current epoch as the best up-to-date model')
-
-
-    # def ExportTensorboard(self):
-    #     '''
-    #     Export train/val and inference results to tensorboard file
-    #     :param result_filepath:
-    #     :return:
-    #     '''
-    #     self.writer.add_scalar('loss/train', self.tr_loss, self.epoch_cnt)
-    #     self.writer.add_scalar('loss/val', self.val_loss, self.epoch_cnt)
-    #     # self.writer.add_scalar('loss/train_consist', self.tr_loss_consist, self.epoch_cnt)
-    #     self.writer.add_scalar('perpix_accuracy/train', 100 * self.tr_Acc, self.epoch_cnt)
-    #     self.writer.add_scalar('perpix_accuracy/val', 100 * self.val_Acc, self.epoch_cnt)
-    #     self.writer.add_scalar('macro average IoU/train', np.mean(self.tr_macro_IoU), self.epoch_cnt)
-    #     self.writer.add_scalar('macro average IoU/val', np.mean(self.val_macro_IoU), self.epoch_cnt)
-    #     self.writer.add_scalar('micro average IoU/train', np.mean(self.tr_micro_IoU), self.epoch_cnt)
-    #     self.writer.add_scalar('micro average IoU/val', np.mean(self.val_micro_IoU), self.epoch_cnt)
