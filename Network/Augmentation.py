@@ -26,7 +26,7 @@ class Augmentor:
                 ### 1. Add gaussian noise (aka white noise) to images.
                 iaa.AdditiveGaussianNoise(scale=0.01 * 255),
                 ### 2. Add random values between -10 and 10 to images
-                iaa.AddElementwise((-5, 5)),
+                iaa.AddElementwise((-10, 10)),
                 ### 3. Multiply all pixels in an image with a specific value, thereby making the image darker or brighter
                 iaa.Multiply((0.8, 1.2)),
                 ### 4. Sharpen an image, then overlay the results with the original using an alpha between 0.0 and 1.0
@@ -36,7 +36,7 @@ class Augmentor:
                 ### 6. changes the contrast of images
                 iaa.ContrastNormalization((0.8, 1.2)),
                 ### 7. blur images using gaussian/average/median kernels
-                # iaa.GaussianBlur(sigma=(0.5, 1.5)),
+                iaa.GaussianBlur(sigma=(0.5, 1.5)),
                 ### 8. flip image vertically and/or horizontally
                 # iaa.Fliplr(0.5),  # horizontal flips
                 # iaa.Flipud(0.5),  # vertical flip

@@ -7,15 +7,17 @@ import matplotlib.pyplot as plt
 import scipy.io as scio
 import copy
 from skimage.morphology import square, binary_closing
+import pathlib
 
 addUnlab_path_dict = {
-    'Crack500': os.path.expanduser('~/vision-repo/Crack500/CRACK500-20200128T063606Z-001/CRACK500/Cutomized')}
+    'Crack500': '../Dataset/Crack500/CRACK500-20200128T063606Z-001/CRACK500/Cutomized'}
 
 
 class DataIO():
 
     def __init__(self, batch_size, seed_split=0, seed_label=0, label_percent=0.05,
-                 data_path=os.path.abspath('./Dataset/CrackForest-dataset'), train_val_test_split=(81, 9.5, 9.5),
+                 data_path=os.path.abspath(os.path.join(pathlib.Path(__file__).parent.resolve(),'../Dataset/CrackForest-dataset')),
+                 train_val_test_split=(81, 9.5, 9.5),
                  add_unlab='None', swap_label=False):
         '''
         Initialize DataIO
@@ -165,7 +167,6 @@ class DataIO():
             self.val_index = np.sort(data_index[self.num_train:self.num_train + self.num_val])
             self.test_index = np.sort(data_index[self.num_train + self.num_val::])
 
-
         else:
             fid = open(split_filepath, 'r')
             ## Collect Train index
@@ -242,14 +243,6 @@ class DataIO():
             self.val_index = np.sort(data_index[self.num_train:self.num_train + self.num_val])
             self.test_index = np.sort(data_index[self.num_train + self.num_val::])
 
-            ## Collect Train index
-            self.all_names = []  # training file names list
-            for key, val in self.all_data.items():
-                self.all_names.append(val['name'])
-
-            self.train_names = [self.all_names[i] for i in self.train_index]
-            self.val_names = [self.all_names[i] for i in self.val_index]
-            self.test_names = [self.all_names[i] for i in self.test_index]
         else:
             fid = open(split_filepath, 'r')
             ## Collect Train index
@@ -290,8 +283,8 @@ class DataIO():
             self.add_train_names)  # number of unlabeled train data (including additional unlabeled data)
 
         tmp_index = copy.deepcopy(self.train_names)
-        # np.random.seed(self.seed_label)
-        # np.random.shuffle(tmp_index)
+        np.random.seed(self.seed_label)
+        np.random.shuffle(tmp_index)
         self.train_labeled_names = tmp_index[0:self.num_train_labeled]
         self.train_labeled_names_active = self.train_labeled_names.copy()  # index used for slicing training data
         self.train_unlabeled_names = tmp_index[self.num_train_labeled::] + self.add_train_names

@@ -10,6 +10,54 @@ import numpy as np
 import skimage.morphology as morph
 import sys
 import torch.nn.functional as F
+from scipy.optimize import linear_sum_assignment
+import time
+
+
+def pairwise_L2(p1, p2):
+    #
+    # p1, p2 - D*N, D*M
+    shape1 = p1.shape[0:2]
+    shape2 = p2.shape[0:2]
+    CostMatDist = np.repeat(np.sum(p1.transpose() ** 2, 1, keepdims=True), shape2[1], axis=1) + \
+                  np.repeat(np.sum(p2 ** 2, 0, keepdims=True), shape1[1], axis=0) - \
+                  2 * p1.transpose() @ p2
+    CostMatDist = (CostMatDist > 0) * CostMatDist
+    return np.sqrt(CostMatDist)
+
+
+def LinearAssignWarp_ConsistLoss(img1, img2):
+    shape1 = img1.shape[0:2]
+    shape2 = img2.shape[0:2]
+
+    img1_vec_ts = torch.reshape(img1, [img1.shape[0] * img1.shape[1], -1])
+    img1_vec = img1_vec_ts.detach().cpu().numpy()
+    img2_vec_ts = torch.reshape(img2, [img2.shape[0] * img2.shape[1], -1])
+    img2_vec = img2_vec_ts.detach().cpu().numpy()
+
+    ## Build Distance Cost Matrix
+    indices1 = np.unravel_index(np.arange(0, img1.shape[0] * img1.shape[1]),
+                                shape1, order='C')
+    indices1 = np.array([indices1[0], indices1[1]])
+    indices2 = np.unravel_index(np.arange(0, img2.shape[0] * img2.shape[1]),
+                                shape2, order='C')
+    indices2 = np.array([indices2[0], indices2[1]])
+    CostMatDist = pairwise_L2(indices1, indices2)
+
+    CostMatColor = pairwise_L2(img1_vec.transpose(), img2_vec.transpose())
+
+    ## Compute Linear Assignment
+    gamma = 0.01
+    cost = CostMatColor + gamma * CostMatDist
+    # start_time = time.time()
+    row_ind, col_ind = linear_sum_assignment(cost)
+    # end_time = time.time()
+    # elapse_time = end_time - start_time
+    # print('elapsed time {}'.format(elapse_time))
+
+    img1_vec_ts_warp = img1_vec_ts[col_ind]
+
+    return torch.norm(img1_vec_ts_warp - img2_vec_ts, 'fro')
 
 
 class BCELoss(nn.Module):
@@ -117,6 +165,287 @@ class DiceLoss(nn.Module):
         dice = 2.0 * (pred * gt).sum() + self.smooth
         dice = dice / (pred.sum() + gt.sum() + self.smooth)
         loss = 1.0 - dice
+        return loss
+
+
+class MaskedDiceLoss(nn.Module):
+    def __init__(self, logit=True, smooth=1e-1):
+        '''
+        constructor
+        :param logit: indicate  input is logit
+        '''
+        super().__init__()
+        self.logit = logit
+        self.smooth = smooth
+
+    def forward(self, pred, gt, mask=None, **kwargs):
+
+        # pred= kwargs['pred']
+        # gt= kwargs['gt']
+        # expand mask to the same dim as pred
+        if mask is None:
+            mask = torch.ones_like(pred).view(-1)
+
+        else:
+            mask = mask[..., np.newaxis, np.newaxis]
+            mask = torch.tensor(np.tile(mask, [1, 1, pred.shape[2], pred.shape[3]]),
+                                dtype=torch.float16, device=pred.device)
+            mask = mask.view(-1)
+
+        if self.logit:
+            pred = torch.sigmoid(pred)
+        smooth = 1.0
+        pred = pred.view(-1)[mask == 1.]
+        gt = gt.view(-1)[mask == 1.]
+        dice = 2.0 * (pred * gt).sum() + self.smooth
+        dice = dice / (pred.sum() + gt.sum() + self.smooth)
+        loss = 1.0 - dice
+        return loss
+
+
+class MaskedDiceLoss_SliceConsist(nn.Module):
+    def __init__(self, logit=True, smooth=1e-1):
+        '''
+        constructor
+        :param logit: indicate  input is logit
+        '''
+        super().__init__()
+        self.logit = logit
+        self.smooth = smooth
+
+    def forward(self, pred, gt, mask=None,
+                force_strong=None, force_weak=None, **kwargs):
+
+        # pred= kwargs['pred']
+        # gt= kwargs['gt']
+        # expand mask to the same dim as pred
+        if mask is None:
+            mask = torch.ones_like(pred)
+            mask_vec = mask.view(-1)
+
+        else:
+            mask = mask[..., np.newaxis, np.newaxis]
+            mask = torch.tensor(np.tile(mask, [1, 1, pred.shape[2], pred.shape[3]]),
+                                dtype=torch.float16, device=pred.device)
+            mask_vec = mask.view(-1)
+
+        ## ComputeDice loss for labeled slices
+        if self.logit:
+            pred = torch.sigmoid(pred)
+        smooth = 1.0
+        pred_vec = pred.view(-1)[mask_vec == 1.]
+        gt_vec = gt.view(-1)[mask_vec == 1.]
+        dice = 2.0 * (pred_vec * gt_vec).sum() + self.smooth
+        dice = dice / (pred_vec.sum() + gt_vec.sum() + self.smooth)
+        loss = 1.0 - dice
+
+        ## Compute consistency loss for unlabeled slices
+        if force_strong is None:
+            force_strong = 1.  # consistency strength between one labeled slice and one unlabeled slice
+        if force_weak is None:
+            force_weak = 0.0  # consistency strength between two unlabeled slices
+
+        loss_consist = 0.
+        N_conpair = 1
+        for b_i, mask_i in enumerate(mask):
+            for j in range(0, len(mask_i) - 1):
+                # iterate all slices until the one before the last one
+                if not (mask_i[j].sum() > 1. and mask_i[j + 1].sum() > 1.):
+                    # if adjacent frames are not both labeled, enforce consistency
+                    if (mask_i[j].sum() > 1.) != (mask_i[j + 1].sum() > 1.):
+                        # strong consistency
+                        loss_consist = force_strong * torch.norm(pred[b_i, j] - pred[b_i, j + 1], 'fro') / N_conpair + (
+                                    N_conpair - 1) / N_conpair * loss_consist
+                        N_conpair += 1
+                    else:
+                        # weak consistency
+                        loss_consist = force_weak * torch.norm(pred[b_i, j] - pred[b_i, j + 1], 'fro') / N_conpair + (
+                                    N_conpair - 1) / N_conpair * loss_consist
+                        N_conpair += 1
+        ## final loss
+        loss += 1e-3 * loss_consist
+
+        return loss
+
+
+class MaskedDiceLoss_SliceConsistLinAssign(nn.Module):
+    def __init__(self, logit=True, smooth=1e-1):
+        '''
+        constructor
+        :param logit: indicate  input is logit
+        '''
+        super().__init__()
+        self.logit = logit
+        self.smooth = smooth
+
+    def forward(self, pred, gt, mask=None,
+                force_strong=None, force_weak=None, consist_weight=1e-1,
+                **kwargs):
+
+        # pred= kwargs['pred']
+        # gt= kwargs['gt']
+        # expand mask to the same dim as pred
+        if mask is None:
+            mask = torch.ones_like(pred)
+            mask_vec = mask.view(-1)
+
+        else:
+            mask = mask[..., np.newaxis, np.newaxis]
+            mask = torch.tensor(np.tile(mask, [1, 1, pred.shape[2], pred.shape[3]]),
+                                dtype=torch.float16, device=pred.device)
+            mask_vec = mask.view(-1)
+
+        ## ComputeDice loss for labeled slices
+        if self.logit:
+            pred = torch.sigmoid(pred)
+        smooth = 1.0
+        pred_vec = pred.view(-1)[mask_vec == 1.]
+        gt_vec = gt.view(-1)[mask_vec == 1.]
+        dice = 2.0 * (pred_vec * gt_vec).sum() + self.smooth
+        dice = dice / (pred_vec.sum() + gt_vec.sum() + self.smooth)
+        loss = 1.0 - dice
+
+        ## Compute consistency loss for unlabeled slices
+        if force_strong is None:
+            force_strong = 1.  # consistency strength between one labeled slice and one unlabeled slice
+        if force_weak is None:
+            force_weak = 0.0  # consistency strength between two unlabeled slices
+
+        loss_consist = 0.
+        N_conpair = 1
+        for b_i, mask_i in enumerate(mask):
+            # if b_i >4:
+            #     # only compute 4 samples
+            #     break
+            for j in range(0, len(mask_i) - 1):
+                # iterate all slices until the one before the last one
+                if not (mask_i[j].sum() > 1. and mask_i[j + 1].sum() > 1.):
+                    # if adjacent frames are not both labeled, enforce consistency
+                    if (mask_i[j].sum() > 1.) != (mask_i[j + 1].sum() > 1.):
+                        # strong consistency
+                        # compute pixel correspondence
+                        img1 = pred[b_i, j]
+                        img1 = torch.nn.functional.interpolate(img1[None, None, ...], scale_factor=0.5)[0, 0]
+                        img2 = pred[b_i, j + 1]
+                        img2 = torch.nn.functional.interpolate(img2[None, None, ...], scale_factor=0.5)[0, 0]
+
+                        loss_consist = force_strong * LinearAssignWarp_ConsistLoss(img1, img2) / N_conpair + \
+                                       (N_conpair - 1) / N_conpair * loss_consist
+                        N_conpair += 1
+                    else:
+                        # weak consistency
+                        if force_weak == 0.:
+                            continue
+                        # compute pixel correspondence
+                        img1 = pred[b_i, j]
+                        img1 = torch.nn.functional.interpolate(img1[None, None, ...], scale_factor=0.5)[0, 0]
+                        img2 = pred[b_i, j + 1]
+                        img2 = torch.nn.functional.interpolate(img2[None, None, ...], scale_factor=0.5)[0, 0]
+
+                        loss_consist = force_weak * LinearAssignWarp_ConsistLoss(img1, img2) / N_conpair + \
+                                       (N_conpair - 1) / N_conpair * loss_consist
+                        N_conpair += 1
+        ## final loss
+        loss += consist_weight * loss_consist
+
+        return loss
+
+
+class MaskedDiceLoss_BoundLoss(nn.Module):
+    def __init__(self, logit=True, smooth=1e-1):
+        '''
+        constructor
+        :param logit: indicate  input is logit
+        '''
+        super().__init__()
+        self.logit = logit
+        self.smooth = smooth
+
+    def forward(self, pred, gt, mask=None,
+                force_strong=None, force_weak=None, consist_weight=1e-1,
+                **kwargs):
+
+        # pred= kwargs['pred']
+        # gt= kwargs['gt']
+        # expand mask to the same dim as pred
+        if mask is None:
+            mask = torch.ones_like(pred)
+            mask_vec = mask.view(-1)
+
+        else:
+            mask = mask[..., np.newaxis, np.newaxis]
+            mask = torch.tensor(np.tile(mask, [1, 1, pred.shape[2], pred.shape[3]]),
+                                dtype=torch.float16, device=pred.device)
+            mask_vec = mask.view(-1)
+
+        ## ComputeDice loss for labeled slices
+        if self.logit:
+            pred = torch.sigmoid(pred)
+        smooth = 1.0
+        pred_vec = pred.view(-1)[mask_vec == 1.]
+        gt_vec = gt.view(-1)[mask_vec == 1.]
+        dice = 2.0 * (pred_vec * gt_vec).sum() + self.smooth
+        dice = dice / (pred_vec.sum() + gt_vec.sum() + self.smooth)
+        loss = 1.0 - dice
+
+        ## Compute consistency loss for unlabeled slices
+        if force_strong is None:
+            force_strong = 1.  # consistency strength between one labeled slice and one unlabeled slice
+        if force_weak is None:
+            force_weak = 0.0  # consistency strength between two unlabeled slices
+
+        loss_consist = 0.
+        N_conpair = 1
+        for b_i, mask_i in enumerate(mask):
+            # if b_i >4:
+            #     # only compute 4 samples
+            #     break
+            for j in range(0, len(mask_i) - 1):
+                # iterate all slices until the one before the last one
+                if not (mask_i[j].sum() > 1. and mask_i[j + 1].sum() > 1.):
+                    # if adjacent frames are not both labeled, enforce consistency
+                    if (mask_i[j].sum() > 1.) != (mask_i[j + 1].sum() > 1.):
+                        # strong consistency
+                        # compute pixel correspondence
+                        img1 = pred[b_i, j]
+                        img1 = torch.nn.functional.interpolate(img1[None, None, ...], scale_factor=0.5)[0, 0]
+                        img2 = pred[b_i, j + 1]
+                        img2 = torch.nn.functional.interpolate(img2[None, None, ...], scale_factor=0.5)[0, 0]
+
+                        ## lower bound loss
+                        lowerbound = (img1 > 0.6).to(torch.float32)
+                        loss_lowerbound = torch.sum(lowerbound * img2) / torch.sum(lowerbound)
+                        ## upper bound loss
+                        upperbound = (img1 > 0.4).to(torch.float32)
+                        loss_upperbound = torch.sum(upperbound * img2) / torch.sum(img2)
+
+                        loss_consist = (loss_lowerbound + loss_upperbound) / N_conpair + \
+                                       (N_conpair - 1) / N_conpair * loss_consist
+                        N_conpair += 1
+                    else:
+                        # weak consistency
+                        if force_weak == 0.:
+                            continue
+                        # compute pixel correspondence
+                        img1 = pred[b_i, j]
+                        img1 = torch.nn.functional.interpolate(img1[None, None, ...], scale_factor=0.5)[0, 0]
+                        img2 = pred[b_i, j + 1]
+                        img2 = torch.nn.functional.interpolate(img2[None, None, ...], scale_factor=0.5)[0, 0]
+
+                        ## lower bound loss
+                        lowerbound = img1 > 0.6
+                        loss_lowerbound = torch.sum(lowerbound * img2) / torch.sum(lowerbound)
+                        ## upper bound loss
+                        upperbound = img1 > 0.4
+                        loss_upperbound = torch.sum(upperbound * img2) / torch.sum(img2)
+
+                        loss_consist = (loss_lowerbound + loss_upperbound) / N_conpair + \
+                                       (N_conpair - 1) / N_conpair * loss_consist
+
+                        N_conpair += 1
+        ## final loss
+        loss += consist_weight * loss_consist
+
         return loss
 
 

@@ -3,12 +3,9 @@
 import os
 import sys
 import numpy as np
-import datetime
-from torch.utils.tensorboard import SummaryWriter
-import torch.nn as nn
 
-# sys.path.append('./Trainer')
-# sys.path.append('./DataLoader')
+sys.path.append('./Trainer')
+sys.path.append('./DataLoader')
 
 import torch
 import argparse as arg
@@ -19,7 +16,7 @@ parser = arg.ArgumentParser(description='Take parameters')
 
 parser.add_argument('--Mode',type=str,help='Running mode default: train [train, test]',default='train')
 parser.add_argument('--Ckpt',type=str,help='Ckpt to resotre for test/inference',
-                    default='/vision02/SSL/Simplified/Results/CrackForest/FullSup/FullSup_ResUnet_Diceloss_ep-1000_m-0.01_2020-11-20_10-59-38/ckpt/model_epoch-best.pt')
+                    default='')
 parser.add_argument('--GPU',type=int,help='GPU to use',default=0)
 # parser.add_argument('--ExpSum','-es',type=int,help='Flag to indicate if export summary',default=0)    # bool
 parser.add_argument('--SaveRslt','-sr',type=int,help='Flag to indicate if save trained model and results',default=1)    # bool
@@ -81,7 +78,8 @@ args = parser.parse_args()
 lab_ratio = 0.5
 if 'Contrastive' not in args.loss:
     if args.ssl == 'FullSup':
-        from Trainer import trainer_Unet as trainer
+        from Trainer import trainer_unet as trainer
+
         lab_ratio = 1.
     elif args.ssl == 'FullSup_noaug':
         import trainer_unet_noaug as trainer
@@ -92,7 +90,7 @@ if 'Contrastive' not in args.loss:
     elif args.ssl == 'PiMdl':
         import trainer_unet_PiMdl as trainer
     elif args.ssl == 'MeanTeacher':
-        from Trainer import trainer_MT_Unet as trainer
+        from Trainer import trainer_unet_MT as trainer
     elif args.ssl == 'MeanTeacher+Focal':
         import trainer_unet_MT_Focal as trainer
     elif args.ssl == 'MeanTeacher+Cycle':
@@ -200,8 +198,6 @@ print('Data loaded!')
 
 # Loader.InitDataset(split_filepath='/vision02/SSL/Simplified/Experiments/DataSplit/split_0')
 
-# if args.GPU != -1:
-#     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.GPU)
 device = torch.device('cuda:{}'.format(args.GPU) if torch.cuda.is_available() else 'cpu')
 
 ## Define Network

@@ -1,0 +1,15 @@
+Train:
+Acc: 93.24%
+Macro Average IoU: 76.13%
+Micro Average IoU: 76.06%
+Val:
+Acc: 91.13%
+Macro Average  IoU: 65.70%
+Micro Average  IoU: 65.63%
+Test:
+Acc: 91.13%
+Macro Average  IoU: 65.70%
+Micro Average  IoU: 65.63%
+AIU: 60.98%
+Macro Average  F1: 78.89%
+Micro Average  F1: 79.25%

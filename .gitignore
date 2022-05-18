@@ -1,7 +1,8 @@
 /Results/CrackForest/
-/Dataset/CrackForest-dataset/groundTruth/
-/Dataset/CrackForest-dataset/image/
-/Dataset/CrackForest-dataset/seg/
-/Dataset/CrackForest-dataset/README.md
+/Dataset/CrackForest-dataset
 /exp_meanteacher.sh
 /exp_full_sup.sh
+/train_FullSup.sh
+/train_MT.sh
+/test_Unet.sh
+/Network/GeoTform_bk.py

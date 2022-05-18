@@ -1,0 +1,14 @@
+Host:Changi
+GPU:1
+Network:ResUnet
+LearningRate:0.001
+Epoch:1000
+batchsize:8
+labelpercent:0.05
+ssl:FullSup
+Gamma:1.0
+RampupEpoch:100
+Target Dataset:EM128
+Aux Dataset:None
+AddLocation:0
+Augment:Affine

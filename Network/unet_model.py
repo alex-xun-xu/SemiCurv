@@ -366,6 +366,116 @@ class ResUNet_SinusoidLocation(nn.Module):
         logits = self.Output(out)
         return logits
 
+
+class ResUNet_LearnedPosEmbed(nn.Module):
+    def __init__(self, n_channels, n_classes, bilinear=True, ki='glorot_uniform',SinPeriod=4):
+        super().__init__()
+        from torch_position_embedding import PositionEmbedding
+
+
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+        self.bilinear = bilinear
+        self.SinPeriod = SinPeriod
+
+        self.posembed_net = PositionEmbedding(num_embeddings=320*480, embedding_dim=32, mode=PositionEmbedding.MODE_ADD)
+
+        self.ResBlock1 = ResDoubleConv(n_channels, 32)
+        self.Downscale1 = Downscale(2)
+        self.ResBlock2 = ResDoubleConv(32, 64)
+        self.Downscale2 = Downscale(2)
+        self.ResBlock3 = ResDoubleConv(64, 128)
+        self.Downscale3 = Downscale(2)
+        self.ResBlock4 = ResDoubleConv(128, 256)
+        self.Downscale4 = Downscale(2)
+        self.ResBlock5 = ResDoubleConv(256, 512)
+        self.Upscale5 = Upscale(2)
+        self.ResBlock6 = ResDoubleConv(512+256, 256)
+        self.Upscale6 = Upscale(2)
+        self.ResBlock7 = ResDoubleConv(256+128, 128)
+        self.Upscale7 = Upscale(2)
+        self.ResBlock8 = ResDoubleConv(128+64, 64)
+        self.Upscale8 = Upscale(2)
+        self.ResBlock9 = ResDoubleConv(64+32, 32)
+        self.Output = OutputLayers(32, n_classes)
+
+        self._init_weights(ki)
+
+
+    def _init_weights(self, ki):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                init_weight[ki](m.weight)
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def AppendLocationMap(self,Input):
+        '''
+        Generate location map
+        :param x: Input tensor
+        :return:
+        '''
+
+        x, y = np.meshgrid(np.arange(0, Input.shape[3]),
+                           np.arange(0, Input.shape[2]))
+        x = np.sin(x/x.max()*self.SinPeriod*np.pi)
+        y = np.cos(y/y.max()*self.SinPeriod*np.pi)
+        x = x[np.newaxis, np.newaxis, ...].astype(np.float32)
+        y = y[np.newaxis, np.newaxis, ...].astype(np.float32)
+        x = ch.tensor(np.tile(x, [Input.shape[0], 1, 1, 1]),
+                         device=Input.device)
+        y = ch.tensor(np.tile(y, [Input.shape[0], 1, 1, 1]),
+                         device=Input.device)
+        return ch.cat([Input, x, y], dim=1)
+
+
+    def forward(self, x):
+        ## Encoder Net
+        # out = self.AppendLocationMap(x)
+        out = self.ResBlock1(x)
+        res1 = out.clone()
+        out_shp = out.shape
+        out = out.permute(0,2,3,1)
+        out = out.view(out.shape[0],-1,out.shape[-1])
+        out = self.posembed_net(out)
+        out = out.view(out_shp[0],out_shp[2],out_shp[3],out_shp[1])
+        out = out.permute(0,3,1,2)
+        out = self.Downscale1(out)
+
+        # out = self.AppendLocationMap(out)
+        out = self.ResBlock2(out)
+        res2 = out.clone()
+        out = self.Downscale2(out)
+
+        # out = self.AppendLocationMap(out)
+        out = self.ResBlock3(out)
+        res3 = out.clone()
+        out = self.Downscale3(out)
+
+        # out = self.AppendLocationMap(out)
+        out = self.ResBlock4(out)
+        res4 = out.clone()
+        out = self.Downscale4(out)
+
+        ## Decoder Net
+        out = self.ResBlock5(out)
+        out = self.Upscale5(out)
+
+        out = self.ResBlock6(ch.cat([out,res4],dim=1))
+        out = self.Upscale6(out)
+
+        out = self.ResBlock7(ch.cat([out,res3],dim=1))
+        out = self.Upscale7(out)
+
+        out = self.ResBlock8(ch.cat([out,res2],dim=1))
+        out = self.Upscale8(out)
+
+        out = self.ResBlock9(ch.cat([out,res1],dim=1))
+
+        logits = self.Output(out)
+        return logits
+
 class HED(nn.Module):
     def __init__(self, n_channels=3):
         super(HED, self).__init__()
