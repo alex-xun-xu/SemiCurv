@@ -26,7 +26,7 @@ Prepare datasets for evaluation.
 
 ### CrackForest Dataset
 
-Collect CrackForest dataset.
+Collect CrackForest dataset by running the following script.
 
 ```
 mkdir ./Dataset
@@ -36,11 +36,11 @@ git clone https://github.com/cuilimeng/CrackForest-dataset.git
 
 ### EM Dataset
 
-EM128 dataset (cropped patches 128*128 from the original EM dataset [1]).
+EM128 dataset (cropped patches 128*128 from the original EM dataset [1]). Already provided under /Dataset/EM
 
 ### DRIVE Dataset
 
-DRIVE128 dataset (cropped patches 128*128 from the original DRIVE dataset [2]).
+DRIVE128 dataset (cropped patches 128*128 from the original DRIVE dataset [2]). Already provided under /Dataset/DRIVE
 
 ### Run training script
 

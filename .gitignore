@@ -1,5 +1,8 @@
 /Results/CrackForest/
+/Results/DRIVE
+/Results/EM128
 /Dataset/CrackForest-dataset
+/Dataset/split_0
 /exp_meanteacher.sh
 /exp_full_sup.sh
 /train_FullSup.sh
