@@ -1,7 +1,7 @@
 GPU=1
 seed_split=0  # data split seed
 Mode=train  # training (train) or testing (test) mode
-Dataset=CrackForest # dataset to use
+Dataset=EM # dataset to use [option: CrackForest, EM, DRIVE]
 
 Epoch=1000  # number of training epochs
 lr=1e-3 # init learning rate

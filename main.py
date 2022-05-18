@@ -62,7 +62,7 @@ parser.add_argument('--MaxKeepCkpt','-mc',type=int ,help='maximum number of chec
 parser.add_argument('--AddUnlab','-au',type=str ,help='Additional Unlabeled data [default: None] candidates: None, Crack500',default='None')
 parser.add_argument('--TargetData','-ta',type=str ,help='Target dataset [default: CrackForest] candidates: CrackForest,'
                                                         ' Crack500, Gaps384, EM, EM128, DRIVE128, CORN1',
-                    default='CrackForest')
+                    default='EM')
 parser.add_argument('--ValFreq','-vf',type=int ,help='Validation frequency (every n epochs) [default: 1]',default=3)
 parser.add_argument('--MaxTrIter','-mti',type=int ,help='Maximal training iterations [default: inf]',default=10)
 parser.add_argument('--SwapLabel','-sb',type=int ,help='Swap label 0 with 1 (It is not compatible with DiceLoss)[default: False]',default=0)

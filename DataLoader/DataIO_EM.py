@@ -7,13 +7,14 @@ import copy
 from skimage.morphology import square, binary_closing
 import cv2
 from PIL import Image
+import pathlib
 
-addUnlab_path_dict = {'Crack500':os.path.expanduser('/vision-repo/Crack500/CRACK500-20200128T063606Z-001/CRACK500/Cutomized')}
+addUnlab_path_dict = {'Crack500':os.path.abspath('../Dataset/Crack500/CRACK500-20200128T063606Z-001/CRACK500/Cutomized')}
 
 class DataIO():
 
     def __init__(self,batch_size, seed_split=0, seed_label=0, label_percent=0.05,
-                 data_path=os.path.expanduser('/vision-repo/EM/'),
+                 data_path=os.path.abspath(os.path.join(pathlib.Path(__file__).parent.resolve(),'../Dataset/EM')),
                  add_unlab = 'None', crop_size=128):
         '''
                 Initialize DataIO
@@ -47,63 +48,6 @@ class DataIO():
 
         ## Initialize data sample pointer
         self.InitPointer()
-
-
-    def LoadDataset_bk(self):
-        '''
-        load the entire dataset.
-        :return:
-        '''
-
-        ## Load Images & GT
-        data_idx = 0  # index for all loaded data sample
-        self.all_data = {}
-        self.num_train = 0
-        self.num_val = 0
-        self.num_test = 0
-        self.train_names = []
-        self.val_names = []
-        self.test_names = []
-
-        # Load Training Data and cache in memory
-        self.num_train = 15
-        self.num_val = 15
-        self.num_test = 15
-        imgs = Image.open(os.path.join(self.data_path, 'train-volume.tif'))
-        segs = Image.open(os.path.join(self.data_path, 'train-labels.tif'))
-
-        # extract image and segmentation
-        data_idx = 0
-        for i in range(30):
-            imgs.seek(i)
-            img = np.array(imgs)
-            segs.seek(i)
-            seg = np.array(segs)/255
-            img_name = 'img{:03d}'.format(i)
-            if data_idx <15:
-                self.train_names.append(img_name)
-            else:
-                self.val_names.append(img_name)
-
-            self.all_data.update(
-                {img_name: {'img': img, 'gt': seg, 'gt_org': None, 'name': img_name, 'index': data_idx}})
-            data_idx += 1
-
-        self.num_all_data = self.num_train + self.num_val
-
-        #### Load Additional Unlabeled Data
-        self.all_add_data = {}  # additional unlabeled data
-        self.add_train_names = []
-        if self.add_unlab != 'None':
-            addUnlab_filepath = os.path.join(addUnlab_path_dict[self.add_unlab], 'train4Crack500.mat')
-            tmp = scio.loadmat(addUnlab_filepath)
-            allImgNames = tmp['allImgNames'][0].split(' ')
-            data_idx = 0
-            for img, gt, img_name in zip(tmp['allImgs'], tmp['allGTs'], allImgNames):
-                self.all_data.update(
-                    {img_name: {'img': img, 'gt': gt, 'gt_thin': None, 'name': img_name, 'index': data_idx}})
-                data_idx += 1
-                self.add_train_names.append(img_name)
 
     def LoadDataset(self):
         '''
@@ -186,32 +130,11 @@ class DataIO():
                 data_idx += 1
                 self.add_train_names.append(img_name)
 
-
-    def CountClassImbalance(self):
-        '''
-        Count Class Imbalance
-        :return:
-        '''
-
-        pos_pixel_ratio = []
-        for key in self.all_data:
-            gt = self.all_data[key]['gt']
-            if gt is None:
-                continue
-            try:
-                pos_pixel_ratio.append(np.mean(gt))
-            except:
-                a=1
-
-        return np.mean(pos_pixel_ratio)
-
-
     def InitDataset(self, split_filepath=None):
 
         self.LoadDataset()
         # self.GenerateSplit(split_filepath)
         self.GetDatasetMeanVar()
-
 
     def InitDataset_EqLabUnlab(self, split_filepath=None, lab_ratio=1., seed=0):
         self.LoadDataset()
@@ -289,7 +212,6 @@ class DataIO():
 
         np.random.shuffle(self.train_labeled_names_active)
         np.random.shuffle(self.train_unlabeled_names_active)
-
 
     def ShuffleValSet(self):
         '''

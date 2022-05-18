@@ -42,7 +42,9 @@ EM128 dataset (cropped patches 128*128 from the original EM dataset [1]). Alread
 
 DRIVE128 dataset (cropped patches 128*128 from the original DRIVE dataset [2]). Already provided under /Dataset/DRIVE
 
-### Run training script
+## Run training script
+
+Train fully supervised baseline model and SemiCurv model by running the following script. To change the default dataset, please update 
 
 ```
 sh train.sh

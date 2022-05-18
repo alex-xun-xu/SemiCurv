@@ -14,7 +14,7 @@ addUnlab_path_dict = {'Crack500':os.path.abspath('../Dataset/Crack500/CRACK500-2
 class DataIO():
 
     def __init__(self,batch_size, seed_split=0, seed_label=0, label_percent=0.05,
-                 data_path=os.path.abspath(os.path.join(pathlib.Path(__file__).parent.resolve(),'../Dataset/DRIVE/training')),
+                 data_path=os.path.abspath(os.path.join(pathlib.Path(__file__).parent.resolve(),'../Dataset/DRIVE')),
                  add_unlab = 'None'):
         '''
                 Initialize DataIO
