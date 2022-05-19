@@ -1,6 +1,6 @@
 # SemiCurv: Semi-Supervised Curvilinear Structure Segmentation
 
-This is the official repository for <a href="">"SemiCurv: Semi-Supervised Curvilinear Structure Segmentation"</a> IEEE TIP 2022. Please cite this work [1] if you find this repository useful for your project.
+This is the official repository for <a href="https://arxiv.org/abs/2205.08706">"SemiCurv: Semi-Supervised Curvilinear Structure Segmentation"</a> IEEE TIP 2022. Please cite this work [1] if you find this repository useful for your project.
 
 Recent work on curvilinear structure segmentation has mostly focused on backbone network design and loss engineering. The challenge of collecting labelled data, an expensive and labor intensive process, has been overlooked. While labelled data is expensive to obtain, unlabelled data is often readily available. In this work, we propose SemiCurv, a semi-supervised learning (SSL) framework for curvilinear structure segmentation that is able to utilize such unlabelled data to reduce the labelling burden.
 
