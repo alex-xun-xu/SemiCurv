@@ -4,7 +4,7 @@ This is the official repository for <a href="https://arxiv.org/abs/2205.08706">"
 
 Recent work on curvilinear structure segmentation has mostly focused on backbone network design and loss engineering. The challenge of collecting labelled data, an expensive and labor intensive process, has been overlooked. While labelled data is expensive to obtain, unlabelled data is often readily available. In this work, we propose SemiCurv, a semi-supervised learning (SSL) framework for curvilinear structure segmentation that is able to utilize such unlabelled data to reduce the labelling burden.
 
-![](Image/framework.png)
+![SemiCurv Framework](./Image/Framework.png)
 
 This demo code reproduces the results for semi-supervised segmentation on CrackForest, EM and DRIVE datasets.
 
